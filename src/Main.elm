@@ -113,6 +113,9 @@ updateFrame model dt =
             if model.spinningPaused then
                 0
 
+            else if model.enterKeyDown then
+                model.rotationSpeed / 4
+
             else
                 model.rotationSpeed
     in
