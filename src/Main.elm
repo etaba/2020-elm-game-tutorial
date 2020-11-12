@@ -72,14 +72,25 @@ type SupportedKey
     | UnknownKey
 
 
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.batch
-        [ onAnimationFrameDelta Frame
-        , onKeyPress (Decode.map KeyPressed keyDecoder)
-        , onKeyDown (Decode.map KeyDowned keyDecoder)
-        , onKeyUp (Decode.map KeyUpped keyDecoder)
-        ]
+{-| Whether to log debug information about keyboard key events.
+
+Change this to True if you need to debug your input handling.
+
+-}
+shouldLogKeyboardEvents : Bool
+shouldLogKeyboardEvents =
+    False
+
+
+{-| Wrapper around Debug.log that only logs if the provided boolean is True.
+-}
+logIf : Bool -> String -> a -> a
+logIf condition msg item =
+    if condition then
+        log msg item
+
+    else
+        item
 
 
 {-| Contains the main game update logic.
@@ -118,7 +129,7 @@ update =
                         updateFrame model deltaTime
 
                     KeyPressed key ->
-                        case key of
+                        case logIf shouldLogKeyboardEvents "update: Key was pressed" key of
                             SpaceKey ->
                                 { model | spinningPaused = not model.spinningPaused }
 
@@ -126,7 +137,7 @@ update =
                                 model
 
                     KeyDowned key ->
-                        case key of
+                        case logIf shouldLogKeyboardEvents "update: Key was held down" key of
                             EnterKey ->
                                 { model | enterKeyDown = True }
 
@@ -134,7 +145,7 @@ update =
                                 model
 
                     KeyUpped key ->
-                        case key of
+                        case logIf shouldLogKeyboardEvents "update: Key was released" key of
                             EnterKey ->
                                 { model | enterKeyDown = False }
 
@@ -142,6 +153,16 @@ update =
                                 model
         in
         ( updatedModel, Cmd.none )
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.batch
+        [ onAnimationFrameDelta Frame
+        , onKeyPress (Decode.map KeyPressed keyDecoder)
+        , onKeyDown (Decode.map KeyDowned keyDecoder)
+        , onKeyUp (Decode.map KeyUpped keyDecoder)
+        ]
 
 
 keyDecoder : Decode.Decoder SupportedKey
@@ -167,7 +188,7 @@ parseKey rawKey =
     -- console.logs the thing + returns the thing. So you can use it to wrap anything and see what
     -- its value is on the console. Just remember that it always needs two args!
     -- https://package.elm-lang.org/packages/elm/core/latest/Debug#log
-    log ("From '" ++ rawKey ++ "' we parsed a key of") parsedKey
+    logIf shouldLogKeyboardEvents ("parseKey: from '" ++ rawKey ++ "' we parsed a key of") parsedKey
 
 
 width : number
