@@ -8,11 +8,11 @@ import Canvas.Settings exposing (fill)
 import Canvas.Settings.Advanced exposing (rotate, transform, translate)
 import Color
 import Debug exposing (log)
-import Html exposing (Html, del, div)
+import Html exposing (Html, del, div, h3, text)
 import Html.Attributes exposing (style)
 import Json.Decode as Decode
 import Dict exposing (Dict)
---import Time exposing (Posix)
+import Time
 import Random exposing (Generator)
 
 
@@ -41,6 +41,7 @@ type alias Model =
     , asteroids : List Asteroid
     , numAsteroids : Int
     , randomInt : Int
+    , elapsedTime : Float
     , gameOver : Bool
     }
 
@@ -70,12 +71,12 @@ init _ =
       , shipCoordinate = { x = width/2, y = height/2, rotation = 0}
       , bullets = []
       , asteroids = []
-      , numAsteroids = 100
+      , numAsteroids = 1
       , randomInt = 0
+      , elapsedTime = 0
       , gameOver = False }
     , Cmd.none
     )
-
 
 type Msg
     = Frame Float -- float = dt, aka delta time: the amount of time elapsed since the last frame
@@ -83,7 +84,7 @@ type Msg
     | KeyDowned SupportedKey
     | KeyUpped SupportedKey
     | GotRandom Int
-
+    | Tick Time.Posix
 
 type SupportedKey
     = SpaceKey
@@ -91,7 +92,6 @@ type SupportedKey
     | LeftKey
     | RightKey
     | UnknownKey
-
 
 randomFloat : Float -> Float -> Model -> Float
 randomFloat begin end model =
@@ -328,17 +328,28 @@ updateFrame model dt =
 
         adjustedShipCoordinate = {x = adjustedX, y = adjustedY, rotation = adjustedRotation}
 
-        --gameOver = List.length (List.filter (\a -> (asteroidCollision a adjustedShipCoordinate shipLen)) model.asteroids) > 0
-        gameOver = False
+        increaseDifficulty : Bool
+        increaseDifficulty =
+          (modBy 10 (floor (model.elapsedTime / 1000))) > model.numAsteroids
+
+        numAsteroids = 
+          if increaseDifficulty then 
+            model.numAsteroids + 1
+          else
+            model.numAsteroids
+
+        gameOver = List.length (List.filter (\a -> (asteroidCollision a adjustedShipCoordinate shipLen)) model.asteroids) > 0
+        --gameOver = False
     in
     if gameOver then
-      model
+      { model | gameOver = True }
     else
       { model | vx = adjustedVx, 
                 vy = adjustedVy,
                 shipCoordinate = adjustedShipCoordinate,
                 bullets = bullets,
                 asteroids = asteroids,
+                numAsteroids = numAsteroids,
                 gameOver = gameOver
                  }
 
@@ -351,6 +362,16 @@ update =
                 case msg of
                     Frame deltaTime ->
                         updateFrame model deltaTime
+
+                    Tick newTime ->
+                      let
+                        adjustedTime = 
+                          if model.gameOver then
+                            model.elapsedTime
+                          else
+                            model.elapsedTime + 10
+                      in
+                        { model | elapsedTime = adjustedTime }
 
                     KeyPressed key ->
                         case key of
@@ -408,6 +429,7 @@ subscriptions model =
         , onKeyPress (Decode.map KeyPressed keyDecoder)
         , onKeyDown (Decode.map KeyDowned keyDecoder)
         , onKeyUp (Decode.map KeyUpped keyDecoder)
+        , Time.every 10 Tick
         ]
 
 
@@ -460,18 +482,22 @@ maxShipSpeed = 0.4
 
 view : Model -> Html Msg
 view model =
-    div
-        [ style "display" "flex"
-        , style "justify-content" "center"
-        , style "align-items" "center"
-        ]
-        [ Canvas.toHtml
-            ( width, height )
-            [ style "" "" ]
-            ([ clearScreen
-            , renderShip model
-            ] ++ List.map renderBullet model.bullets ++ List.map renderAsteroid model.asteroids)
-        ]
+    div [style "display" "flex"
+          , style "align-items" "center"
+          , style "flex-direction" "column"
+          , style "height" "400"] 
+        [
+          h3 [] [ text ("Score: " ++ (String.fromFloat (model.elapsedTime / 1000)))  ],
+          div
+              [][ 
+                (Canvas.toHtml
+                  ( width, height )
+                  []
+                  ([ clearScreen
+                  , renderShip model
+                  ] ++ List.map renderBullet model.bullets ++ List.map renderAsteroid model.asteroids))
+              ]
+    ]
 
 
 clearScreen : Canvas.Renderable
